@@ -1,9 +1,9 @@
-(ns mongodb.async
-  (:require [mongodb.coerce :as c]
-            [clojure.core.async :as async]
-            [clojure.walk :as w])
+(ns ^{:author "Miguel Guinada <mguinada@gmail.com>"} mongodb.async
+  "Thin wrapper for MongoDB's java async driver that enables idiomatic
+  asynchronous operation over MongoDB via callbacks or `core.async channels`"
+  (:require [mongodb.async.coerce :as c]
+            [clojure.core.async :as async])
   (:import [org.bson Document]
-           [com.mongodb Block]
            [com.mongodb.async SingleResultCallback]
            [com.mongodb.async.client MongoClients]))
 
@@ -13,12 +13,12 @@
   "Connects to a database.
 
    This function receives the database name to connect to and optionaly a map
-   with connection properties.
+   with connection properties. A connection to the database will be returned.
 
    Examples:
 
    (connect :local-database)
-   (connect :some-database {:host '192.168.10.10' :port 27017})
+   (connect \"some-database\" {:host '192.168.10.10' :port 27017})
   "
   ([database] (connect database {}))
   ([database {:keys [host port] :or {host "127.0.0.1" port 27017}}]
@@ -35,8 +35,13 @@
   (.getCollection (.db conn) (name dbcol)))
 
 (defn- fetch-iterable
-  [^Connection conn dbcol cb]
-  (.find (collection conn dbcol)))
+  ([^Connection conn coll]
+   (.find (collection conn coll)))
+  ([^Connection conn coll where]
+   {:pre [(map? where)]}
+   (if (empty? where)
+     (fetch-iterable conn coll)
+     (.find (collection conn coll) (c/to-mongo where)))))
 
 (defmacro ^:private resultfn
   [[result exception] & body]
@@ -83,12 +88,14 @@
        (.drop (resultfn [rs ex] (cb rs ex))))))
 
 (defn fetch
-  "Fetches data from collection `coll`"
-  ([^Connection conn coll]
-   (resultch fetch conn coll))
-  ([conn coll cb]
-   (-> (fetch-iterable conn coll cb)
-       (.into
-        (new java.util.ArrayList)
-        (resultfn [result ex]
-                  (cb (c/to-clojure result) ex))))))
+  "Fetches data from collection `coll`."
+  [^Connection conn coll & opts]
+  (let [{:keys [where] :or {where {}}} (remove fn? opts)
+        cb (first (filter fn? opts))]
+    (if (nil? cb)
+      (resultch fetch conn coll :where where)
+      (-> (fetch-iterable conn coll where)
+          (.into
+           (new java.util.ArrayList)
+           (resultfn [result ex]
+                     (cb (c/to-clojure result) ex)))))))

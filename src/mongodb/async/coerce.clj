@@ -1,4 +1,5 @@
-(ns mongodb.coerce
+(ns mongodb.async.coerce
+  "Clojure/MongoDB - MongoDB/Clojure data coercion"
   (:import [org.bson Document]))
 
 (defn- coerce-map
@@ -8,7 +9,7 @@
   (reduce (fn [m* [k v]] (assoc m* (kfn k) (vfn v))) {} m))
 
 (defprotocol ToMongo
-  (to-mongo [this]))
+  (to-mongo [this] "Coerces clojure data structures to it's mongodb representation"))
 
 (extend-protocol ToMongo
   nil
@@ -25,7 +26,7 @@
     obj))
 
 (defprotocol ToClojure
-  (to-clojure [this]))
+  (to-clojure [this] "Coerces mongodb data structures to it's clojure representation"))
 
 (extend-protocol ToClojure
   nil

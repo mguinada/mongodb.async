@@ -20,11 +20,18 @@
 
 (def ^:dynamic *db*)
 
+(defn insert-test-data!
+  [db]
+  (block!! (db/insert! db :test {:first-name "John" :last-name "Doe" :age 40}))
+  (block!! (db/insert! db :test {:first-name "Jane" :last-name "Doe" :age 38}))
+  (block!! (db/insert! db :test {:first-name "Johnny" :last-name "Doe" :age 6})))
+
 (defn mongo-test-fixture
   [test]
   (log-level Level/SEVERE)
   (binding [*db* (db/connect :test-db {:host "127.0.0.1" :port 27017})]
     (try
+      (insert-test-data! *db*)
       (test)
       (finally
         (do
@@ -53,9 +60,33 @@
                         :users
                         {:first-name "John" :last-name "Doe"})))))))
 
-(deftest fetch-test
+(deftest fetch-all-test
   (do
-    (block!! (db/insert! *db* :test {:first-name "John" :last-name "Doe"}))
-    (block!! (db/insert! *db* :test {:first-name "Jane" :last-name "Doe"}))
     (testing "returns a collection of documents as a channel"
-      (is (= [["John" "Doe"] ["Jane" "Doe"]] (mapv names (<!! (db/fetch *db* :test))))))))
+      (is (= [["John" "Doe"] ["Jane" "Doe"] ["Johnny" "Doe"]]
+             (mapv names (<!! (db/fetch *db* :test))))))))
+
+(deftest fetch-where-test
+  (do
+    (testing "Simple equality"
+      (is (= [["Jane" "Doe"]]
+             (mapv names (<!! (db/fetch *db* :test :where {:first-name "Jane"}))))))
+    (testing "Range of values and equality"
+      (is (= [["John" "Doe"]]
+             (mapv names (<!! (db/fetch *db* :test :where
+                                        {:first-name "John" :age {:$gte 38 :$lt 50}}))))))
+    (testing "Logical OR"
+      (is (= [["John" "Doe"] ["Johnny" "Doe"]]
+             (mapv
+              names
+              (<!! (db/fetch *db* :test :where {:$or [{:first-name "John"} {:age 6}]}))))))
+    (testing "Logical AND"
+      (is (= [["Johnny" "Doe"]]
+             (mapv
+              names
+              (<!! (db/fetch *db* :test :where {:$and [{:last-name "Doe"} {:age 6}]}))))))
+    (testing "Logical NOT"
+      (is (= [["John" "Doe"] ["Jane" "Doe"]]
+             (mapv
+              names
+              (<!! (db/fetch *db* :test :where {:age {:$not {:$eq 6}}}))))))))

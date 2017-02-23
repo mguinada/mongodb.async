@@ -1,6 +1,6 @@
-(ns mongodb.coerce-test
+(ns mongodb.async.coerce-test
   (:require [clojure.test :refer :all]
-            [mongodb.coerce :as c])
+            [mongodb.async.coerce :as c])
   (:import [org.bson Document]))
 
 (deftest to-mongo-test
