@@ -3,9 +3,9 @@
   asynchronous operation over MongoDB via callbacks or `core.async channels`"
   (:require [mongodb.async.coerce :as c]
             [clojure.core.async :as async])
-  (:import [org.bson Document]
-           [com.mongodb.async SingleResultCallback]
-           [com.mongodb.async.client MongoClients]))
+  (:import [com.mongodb.async SingleResultCallback]
+           [com.mongodb.async.client MongoClients]
+           [org.bson Document]))
 
 (deftype Connection [client db])
 
@@ -20,7 +20,8 @@
    (connect :local-database)
    (connect \"some-database\" {:host '192.168.10.10' :port 27017})
   "
-  ([database] (connect database {}))
+  ([database]
+   (connect database {}))
   ([database {:keys [host port] :or {host "127.0.0.1" port 27017}}]
    (let [client (MongoClients/create (str "mongodb://" (name host) ":" port))]
      (Connection. client (.getDatabase client (name database))))))
@@ -30,72 +31,100 @@
   [^Connection conn]
   (-> conn .client .close))
 
-(defn- collection
+(defn collection
+  "Gets a collection"
   [^Connection conn dbcol]
   (.getCollection (.db conn) (name dbcol)))
 
-(defn- fetch-iterable
-  ([^Connection conn coll]
-   (.find (collection conn coll)))
-  ([^Connection conn coll where]
-   {:pre [(map? where)]}
-   (if (empty? where)
-     (fetch-iterable conn coll)
-     (.find (collection conn coll) (c/to-mongo where)))))
+(defn- doc?
+  "Returns true is `x` is an instance of `org.bson.Document`"
+  [x]
+  (instance? Document x))
 
-(defmacro ^:private resultfn
+(defmacro ^:private result-fn
   [[result exception] & body]
   `(reify SingleResultCallback
      (onResult [_ ~result ~exception]
        (~@body))))
 
-(defn- resultch
+(defn- result-chan
   [f & args]
   (let [ch (async/chan 1)
         cb (fn [rs ex]
              (-> ch
-              (async/put! (or ex rs))
-              (async/close!)))]
+                 (async/put! (or ex rs))
+                 (async/close!)))]
     (apply f (concat args [cb]))
     ch))
 
+(defn- fetch-iterable
+  [^Connection conn coll ^Document query]
+  {:pre [(doc? query)]}
+  (.find (collection conn coll) query))
+
+(defn- count*
+  [^Connection conn coll ^Document query cb]
+  {:pre [(doc? query)]}
+  (.count
+   (collection conn coll)
+   query
+   (result-fn
+    [rs ex]
+    (cb (c/to-clojure rs) ex))))
+
 (defn insert!
-  "Inserts `data` into collection `coll`."
+  "Inserts `data` into collection `coll`"
   ([^Connection conn coll data]
-   (resultch insert! conn coll (c/to-mongo data)))
+   (result-chan insert! conn coll (c/to-mongo data)))
   ([^Connection conn coll data cb]
    (let [doc (c/to-mongo data)]
      (-> (collection conn coll)
          (.insertOne
           doc
-          (resultfn [_ ex]
-                    (cb (c/to-clojure doc) ex)))))))
+          (result-fn
+           [_ ex]
+           (cb (c/to-clojure doc) ex)))))))
 
 (defn drop-collection!
   "Drops a collection"
   ([^Connection conn coll]
-   (let [ch (async/chan 1)]
-     (drop-collection!
-      conn
-      coll
-      (fn [_ ex]
-        (-> ch
-            (async/put! (if (nil? ex) coll ex))
-            (async/close!))))
+   (let [ch (async/chan 1)
+         cb (fn [_ ex] (-> ch
+                           (async/put! (if (nil? ex) coll ex))
+                           (async/close!)))]
+     (drop-collection! conn coll cb)
      ch))
   ([^Connection conn coll cb]
    (-> (collection conn coll)
-       (.drop (resultfn [rs ex] (cb rs ex))))))
+       (.drop (result-fn [rs ex] (cb rs ex))))))
 
 (defn fetch
   "Fetches data from collection `coll`."
   [^Connection conn coll & opts]
-  (let [{:keys [where] :or {where {}}} (remove fn? opts)
-        cb (first (filter fn? opts))]
-    (if (nil? cb)
-      (resultch fetch conn coll :where where)
-      (-> (fetch-iterable conn coll where)
-          (.into
-           (new java.util.ArrayList)
-           (resultfn [result ex]
-                     (cb (c/to-clojure result) ex)))))))
+  (let [{:keys [where count?] :or {where {} count? false}} (remove fn? opts)
+        cb (first (filter fn? opts))
+        query (c/to-mongo where)]
+    (cond
+      count?
+      (if (nil? cb)
+        (result-chan count* conn coll query)
+        (count* conn coll query cb))
+      :else
+      (if (nil? cb)
+        (result-chan fetch conn coll :where query)
+        (-> (fetch-iterable conn coll query)
+            (.into
+             (java.util.ArrayList.)
+             (result-fn
+              [rs ex]
+              (cb (c/to-clojure rs) ex))))))))
+
+(defn- args-concat
+  [^Connection conn coll opts & extra]
+  (concat [conn coll] (concat opts extra)))
+
+(defn fetch-count
+  "Counts the number of documents in the collection.
+   Optionaly a query map can be provided."
+  [^Connection conn coll & opts]
+  (apply fetch (args-concat conn coll opts :count? true)))

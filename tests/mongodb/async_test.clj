@@ -61,32 +61,41 @@
                         {:first-name "John" :last-name "Doe"})))))))
 
 (deftest fetch-all-test
-  (do
-    (testing "returns a collection of documents as a channel"
-      (is (= [["John" "Doe"] ["Jane" "Doe"] ["Johnny" "Doe"]]
-             (mapv names (<!! (db/fetch *db* :test))))))))
+  (testing "returns a collection of documents as a channel"
+    (is (= [["John" "Doe"] ["Jane" "Doe"] ["Johnny" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test)))))))
 
 (deftest fetch-where-test
-  (do
-    (testing "Simple equality"
-      (is (= [["Jane" "Doe"]]
-             (mapv names (<!! (db/fetch *db* :test :where {:first-name "Jane"}))))))
-    (testing "Range of values and equality"
-      (is (= [["John" "Doe"]]
-             (mapv names (<!! (db/fetch *db* :test :where
-                                        {:first-name "John" :age {:$gte 38 :$lt 50}}))))))
-    (testing "Logical OR"
-      (is (= [["John" "Doe"] ["Johnny" "Doe"]]
-             (mapv
-              names
-              (<!! (db/fetch *db* :test :where {:$or [{:first-name "John"} {:age 6}]}))))))
-    (testing "Logical AND"
-      (is (= [["Johnny" "Doe"]]
-             (mapv
-              names
-              (<!! (db/fetch *db* :test :where {:$and [{:last-name "Doe"} {:age 6}]}))))))
-    (testing "Logical NOT"
-      (is (= [["John" "Doe"] ["Jane" "Doe"]]
-             (mapv
-              names
-              (<!! (db/fetch *db* :test :where {:age {:$not {:$eq 6}}}))))))))
+  (testing "Empty query map"
+    (is (= [["John" "Doe"] ["Jane" "Doe"] ["Johnny" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test :where {}))))))
+  (testing "Simple equality"
+    (is (= [["Jane" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test :where {:first-name "Jane"}))))))
+  (testing "Range of values and equality"
+    (is (= [["John" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test :where {:first-name "John"
+                                                         :age {:$gte 38 :$lt 50}}))))))
+  (testing "Logical OR"
+    (is (= [["John" "Doe"] ["Johnny" "Doe"]]
+           (mapv
+            names
+            (<!! (db/fetch *db* :test :where {:$or [{:first-name "John"} {:age 6}]}))))))
+  (testing "Logical AND"
+    (is (= [["Johnny" "Doe"]]
+           (mapv
+            names
+            (<!! (db/fetch *db* :test :where {:$and [{:last-name "Doe"} {:age 6}]}))))))
+  (testing "Logical NOT"
+    (is (= [["John" "Doe"] ["Jane" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test :where {:age {:$not {:$eq 6}}})))))))
+
+(deftest fetch-count-test
+  (testing "Full count"
+    (is (= 3 (<!! (db/fetch *db* :test :count? true)))))
+  (testing "Filterd count"
+    (is (= 2 (<!! (db/fetch *db* :test :where {:age {:$not {:$eq 6}}} :count? true)))))
+  (testing "Short hand"
+    (is (= 3 (<!! (db/fetch-count *db* :test))))
+    (is (= (<!! (db/fetch-count *db* :test :where {:age {:$not {:$eq 6}}}))
+           (<!! (db/fetch *db* :test :where {:age {:$not {:$eq 6}}} :count? true))))))
