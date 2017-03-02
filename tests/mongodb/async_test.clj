@@ -90,6 +90,18 @@
     (is (= [["John" "Doe"] ["Jane" "Doe"]]
            (mapv names (<!! (db/fetch *db* :test :where {:age {:$not {:$eq 6}}})))))))
 
+(deftest fetch-one-test
+  (testing "Fetch one"
+    (is (= {:first-name "John" :last-name "Doe"}
+           (select-keys
+            (<!! (db/fetch *db* :test :where {:last-name "Doe"} :one? true))
+            [:first-name :last-name]))))
+  (testing "Short hand"
+    (is (= (mapv names (<!! (db/fetch-one *db* :test :where {:last-name "Doe"})))
+           (mapv names (<!! (db/fetch *db* :test :one? true :where {:last-name "Doe"}))))))
+  (testing "Not found"
+    (is (= :nil (<!! (db/fetch-one *db* :test :where {:last-name "nosuchname"}))))))
+
 (deftest fetch-count-test
   (testing "Full count"
     (is (= 3 (<!! (db/fetch *db* :test :count? true)))))

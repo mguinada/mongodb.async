@@ -18,8 +18,7 @@
    Examples:
 
    (connect :local-database)
-   (connect \"some-database\" {:host '192.168.10.10' :port 27017})
-  "
+   (connect \"some-database\" {:host '192.168.10.10' :port 27017})"
   ([database]
    (connect database {}))
   ([database {:keys [host port] :or {host "127.0.0.1" port 27017}}]
@@ -52,7 +51,7 @@
   (let [ch (async/chan 1)
         cb (fn [rs ex]
              (-> ch
-                 (async/put! (or ex rs))
+                 (async/put! (or ex rs :nil))
                  (async/close!)))]
     (apply f (concat args [cb]))
     ch))
@@ -89,9 +88,10 @@
   "Drops a collection"
   ([^Connection conn coll]
    (let [ch (async/chan 1)
-         cb (fn [_ ex] (-> ch
-                           (async/put! (if (nil? ex) coll ex))
-                           (async/close!)))]
+         cb (fn [_ ex]
+              (-> ch
+                  (async/put! (if (nil? ex) coll ex))
+                  (async/close!)))]
      (drop-collection! conn coll cb)
      ch))
   ([^Connection conn coll cb]
@@ -101,7 +101,8 @@
 (defn fetch
   "Fetches data from collection `coll`."
   [^Connection conn coll & opts]
-  (let [{:keys [where count?] :or {where {} count? false}} (remove fn? opts)
+  (let [{:keys [where count? one?]
+         :or {where {} count? false one? false}} (remove fn? opts)
         cb (first (filter fn? opts))
         query (c/to-mongo where)]
     (cond
@@ -111,13 +112,12 @@
         (count* conn coll query cb))
       :else
       (if (nil? cb)
-        (result-chan fetch conn coll :where query)
-        (-> (fetch-iterable conn coll query)
-            (.into
-             (java.util.ArrayList.)
-             (result-fn
-              [rs ex]
-              (cb (c/to-clojure rs) ex))))))))
+        (result-chan fetch conn coll :where query :one? one?)
+        (let [it (fetch-iterable conn coll query)
+              rsfn (result-fn [rs ex] (cb (c/to-clojure rs) ex))]
+          (if one?
+            (.first it rsfn)
+            (.into it (java.util.ArrayList.) rsfn)))))))
 
 (defn- args-concat
   [^Connection conn coll opts & extra]
@@ -128,3 +128,10 @@
    Optionaly a query map can be provided."
   [^Connection conn coll & opts]
   (apply fetch (args-concat conn coll opts :count? true)))
+
+(defn fetch-one
+  "Fetches the first document that complies to the query criteria
+   or `nil` of no document is found if using a callback or `:nil`
+   will be placed in the channel when using this particular interface."
+  [^Connection conn coll & opts]
+  (apply fetch (args-concat conn coll opts :one? true)))
