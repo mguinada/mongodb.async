@@ -127,7 +127,24 @@
            (mapv names (<!! (db/fetch *db* :test :sort {:age :asc}))))))
   (testing "Sort ascending and descending"
     (is (= [["Jane" "Doe"] ["John" "Doe"] ["Johnny" "Doe"]]
-           (mapv names (<!! (db/fetch *db* :test :sort {:first-name :asc :last-name :desc})))))))
+           (mapv names
+                 (<!! (db/fetch *db* :test :sort {:first-name :asc :last-name :desc})))))))
+
+(deftest remove-test
+  (testing "Remove one"
+    (is (= 1 (<!! (db/remove! *db* :test :where {:age 6}))))
+    (is (= 2 (<!! (db/fetch-count *db* :test)))))
+  (testing "Remove several"
+    (is (= 2 (<!! (db/remove! *db* :test :where {:last-name "Doe"}))))
+    (is (zero? (<!! (db/fetch-count *db* :test)))))
+  (testing "Remove all"
+    (insert-test-data! *db*)
+    (is (= 3 (<!! (db/remove! *db* :test))))
+    (is (zero? (<!! (db/fetch-count *db* :test)))))
+  (testing "Remove one"
+    (insert-test-data! *db*)
+    (is (= 1 (<!! (db/remove-one! *db* :test :where {:last-name "Doe"}))))
+    (is (= 2 (<!! (db/fetch-count *db* :test))))))
 
 (deftest explain-test
   (is (not (nil?

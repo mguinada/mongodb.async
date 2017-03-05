@@ -102,6 +102,24 @@
    (-> (collection conn coll)
        (.drop (result-fn [rs ex] (cb rs ex))))))
 
+(defn remove!
+  "Removes documents from a collection
+   Optional arguments:
+
+   :where - a query map
+   :one? - delete only the first document the complies to the query, defaults to `false`"
+  [^Connection conn coll & opts]
+  (let [{:keys [where one?] :or {where {} one? false}} (remove fn? opts)
+        cb (first (filter fn? opts))]
+    (if (nil? cb)
+      (result-chan remove! conn coll :where where :one? one?)
+      (let [query (c/to-mongo where)
+            rsfn (result-fn [rs ex] (cb (.getDeletedCount rs) ex))
+            it (collection conn coll)]
+        (if one?
+          (.deleteOne it query rsfn)
+          (.deleteMany it query rsfn))))))
+
 (defn fetch
   "Fetches data from collection `coll`
    Optional arguments:
@@ -110,7 +128,8 @@
    :only - a vector of keys to project
    :sort - a map with sorting specs
    :count? - performs a document count, defaults to `false`
-   :one? - retreive only the first document, defaults to `false`"
+   :one? - retreive only the first document, defaults to `false`
+   :explain? - returns the query explain data, defaults to `false`"
   [^Connection conn coll & opts]
   (let [{:keys [where only sort count? one? explain?]
          :or {where {} only [] sort {}
@@ -153,3 +172,8 @@
    will be placed in the channel when using this particular interface."
   [^Connection conn coll & opts]
   (apply fetch (args-concat conn coll opts :one? true)))
+
+(defn remove-one!
+  "Remove the first document that complies to the query"
+  [^Connection conn coll & opts]
+  (apply remove! (args-concat conn coll opts :one? true)))
