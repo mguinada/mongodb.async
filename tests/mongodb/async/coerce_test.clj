@@ -44,3 +44,11 @@
 (deftest projection-test
   (is (= (Document. {"_id" 1 "name" 1}) (c/projection [:_id :name])))
   (is (= (Document. {"_id" 0 "name" 1}) (c/projection [:name]))))
+
+(deftest sorting-test
+  (testing "Using :asc and :desc"
+    (is (= (Document. {"age" 1 "last-name" -1})
+           (c/sorting {:age :asc :last-name :desc}))))
+  (testing "Using 1 and -1"
+    (is (= (Document. {"age" 1 "last-name" -1})
+           (c/sorting {:age 1 :last-name -1})))))

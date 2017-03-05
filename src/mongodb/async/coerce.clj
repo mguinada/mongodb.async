@@ -47,3 +47,18 @@
   [v]
   (let [m (zipmap v (repeat 1))]
     (to-mongo (if-not (contains? (set (keys m)) :_id) (assoc m :_id 0) m))))
+
+(defn sorting
+  "Coerces to a sorting specifiction document"
+  [sort]
+  (letfn [(coerce [m [k v]]
+            (let [dir (case v
+                        :asc 1
+                        :desc -1
+                        1 1
+                        -1 -1
+                        (throw (ex-info (str "Can't sort " v)
+                                        {:type :sorting
+                                         :cause sort})))]
+              (assoc m k dir)))]
+    (to-mongo (reduce coerce {} sort))))

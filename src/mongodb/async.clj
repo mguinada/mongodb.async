@@ -57,11 +57,12 @@
     ch))
 
 (defn- fetch-iterable
-  [^Connection conn coll ^Document query projection]
+  [^Connection conn coll ^Document query ^Document projection ^Document sorting]
   {:pre [(doc? query)]}
   (-> (collection conn coll)
       (.find query)
-      (.projection projection)))
+      (.projection projection)
+      (.sort sorting)))
 
 (defn- count*
   [^Connection conn coll ^Document query cb]
@@ -101,10 +102,17 @@
        (.drop (result-fn [rs ex] (cb rs ex))))))
 
 (defn fetch
-  "Fetches data from collection `coll`."
+  "Fetches data from collection `coll`
+   Optional arguments:
+
+   :where - a query map
+   :only - a vector of keys to project
+   :sort - a map with sorting specs
+   :count? - performs a document count, defaults to `false`
+   :one? - retreive only the first document, defaults to `false`"
   [^Connection conn coll & opts]
-  (let [{:keys [where only count? one?]
-         :or {where {} only [] count? false one? false}} (remove fn? opts)
+  (let [{:keys [where only sort count? one?]
+         :or {where {} only [] sort {} count? false one? false}} (remove fn? opts)
         cb (first (filter fn? opts))]
     (cond
       count?
@@ -114,10 +122,12 @@
           (count* conn coll query cb)))
       :else
       (if (nil? cb)
-        (result-chan fetch conn coll :where where :one? one? :only only)
-        (let [proj (c/projection only)
+        (result-chan fetch conn coll :where where :one? one? :only only :sort sort)
+        (let [query (c/to-mongo where)
+              proj (c/projection only)
+              sorting (c/sorting sort)
               rsfn (result-fn [rs ex] (cb (c/to-clojure rs) ex))
-              it (fetch-iterable conn coll (c/to-mongo where) proj)]
+              it (fetch-iterable conn coll query proj sorting)]
           (if one?
             (.first it rsfn)
             (.into it (java.util.ArrayList.) rsfn)))))))

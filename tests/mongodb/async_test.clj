@@ -117,3 +117,14 @@
          (<!! (db/fetch-one *db* :test
                             :only [:last-name :age]
                             :where {:first-name "Jane"})))))
+
+(deftest sorting-test
+  (testing "Sort ascending"
+    (is (= [["John" "Doe"] ["Jane" "Doe"] ["Johnny" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test :sort {:age :desc}))))))
+  (testing "Sort descending"
+    (is (= [["Johnny" "Doe"] ["Jane" "Doe"] ["John" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test :sort {:age :asc}))))))
+  (testing "Sort ascending and descending"
+    (is (= [["Jane" "Doe"] ["John" "Doe"] ["Johnny" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test :sort {:first-name :asc :last-name :desc})))))))
