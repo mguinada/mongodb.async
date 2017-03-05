@@ -111,3 +111,9 @@
     (is (= 3 (<!! (db/fetch-count *db* :test))))
     (is (= (<!! (db/fetch-count *db* :test :where {:age {:$not {:$eq 6}}}))
            (<!! (db/fetch *db* :test :where {:age {:$not {:$eq 6}}} :count? true))))))
+
+(deftest projection-test
+  (is (= {:last-name "Doe" :age 38}
+         (<!! (db/fetch-one *db* :test
+                            :only [:last-name :age]
+                            :where {:first-name "Jane"})))))

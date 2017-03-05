@@ -57,9 +57,11 @@
     ch))
 
 (defn- fetch-iterable
-  [^Connection conn coll ^Document query]
+  [^Connection conn coll ^Document query projection]
   {:pre [(doc? query)]}
-  (.find (collection conn coll) query))
+  (-> (collection conn coll)
+      (.find query)
+      (.projection projection)))
 
 (defn- count*
   [^Connection conn coll ^Document query cb]
@@ -101,20 +103,21 @@
 (defn fetch
   "Fetches data from collection `coll`."
   [^Connection conn coll & opts]
-  (let [{:keys [where count? one?]
-         :or {where {} count? false one? false}} (remove fn? opts)
-        cb (first (filter fn? opts))
-        query (c/to-mongo where)]
+  (let [{:keys [where only count? one?]
+         :or {where {} only [] count? false one? false}} (remove fn? opts)
+        cb (first (filter fn? opts))]
     (cond
       count?
-      (if (nil? cb)
-        (result-chan count* conn coll query)
-        (count* conn coll query cb))
+      (let [query (c/to-mongo where)]
+        (if (nil? cb)
+          (result-chan count* conn coll query)
+          (count* conn coll query cb)))
       :else
       (if (nil? cb)
-        (result-chan fetch conn coll :where query :one? one?)
-        (let [it (fetch-iterable conn coll query)
-              rsfn (result-fn [rs ex] (cb (c/to-clojure rs) ex))]
+        (result-chan fetch conn coll :where where :one? one? :only only)
+        (let [proj (c/projection only)
+              rsfn (result-fn [rs ex] (cb (c/to-clojure rs) ex))
+              it (fetch-iterable conn coll (c/to-mongo where) proj)]
           (if one?
             (.first it rsfn)
             (.into it (java.util.ArrayList.) rsfn)))))))

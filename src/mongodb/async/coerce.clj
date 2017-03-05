@@ -41,3 +41,9 @@
   java.lang.Object
   (to-clojure [obj]
     obj))
+
+(defn projection
+  "Coerces to a projection specification document"
+  [v]
+  (let [m (zipmap v (repeat 1))]
+    (to-mongo (if-not (contains? (set (keys m)) :_id) (assoc m :_id 0) m))))

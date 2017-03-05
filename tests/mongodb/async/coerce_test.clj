@@ -40,3 +40,7 @@
                         :city "a city"
                         :zip {:area "Z" :code "123"}}}
              (c/to-clojure doc))))))
+
+(deftest projection-test
+  (is (= (Document. {"_id" 1 "name" 1}) (c/projection [:_id :name])))
+  (is (= (Document. {"_id" 0 "name" 1}) (c/projection [:name]))))
