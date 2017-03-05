@@ -58,11 +58,12 @@
 
 (defn- fetch-iterable
   [^Connection conn coll ^Document query ^Document projection ^Document sorting]
-  {:pre [(doc? query)]}
-  (-> (collection conn coll)
-      (.find query)
-      (.projection projection)
-      (.sort sorting)))
+  {:pre [(doc? query) (doc? projection) (doc? sorting)]}
+  (let [it (collection conn coll)
+        it (if-not (empty? query) (.find it query) (.find it))
+        it (if-not (empty? projection) (.projection it projection) it)
+        it (if-not (empty? sorting) (.sort it sorting) it)]
+    it))
 
 (defn- count*
   [^Connection conn coll ^Document query cb]
@@ -111,8 +112,9 @@
    :count? - performs a document count, defaults to `false`
    :one? - retreive only the first document, defaults to `false`"
   [^Connection conn coll & opts]
-  (let [{:keys [where only sort count? one?]
-         :or {where {} only [] sort {} count? false one? false}} (remove fn? opts)
+  (let [{:keys [where only sort count? one? explain?]
+         :or {where {} only [] sort {}
+              count? false one? false explain? false}} (remove fn? opts)
         cb (first (filter fn? opts))]
     (cond
       count?
@@ -122,15 +124,18 @@
           (count* conn coll query cb)))
       :else
       (if (nil? cb)
-        (result-chan fetch conn coll :where where :one? one? :only only :sort sort)
+        (result-chan fetch conn coll
+                     :where where :one? one? :only only :sort sort :explain? explain?)
         (let [query (c/to-mongo where)
               proj (c/projection only)
               sorting (c/sorting sort)
               rsfn (result-fn [rs ex] (cb (c/to-clojure rs) ex))
               it (fetch-iterable conn coll query proj sorting)]
-          (if one?
-            (.first it rsfn)
-            (.into it (java.util.ArrayList.) rsfn)))))))
+          (if explain?
+            (.first (.modifiers it (c/to-mongo {:$explain true})) rsfn)
+            (if one?
+                (.first it rsfn)
+                (.into it (java.util.ArrayList.) rsfn))))))))
 
 (defn- args-concat
   [^Connection conn coll opts & extra]

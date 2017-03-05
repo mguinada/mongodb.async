@@ -43,7 +43,8 @@
 
 (deftest projection-test
   (is (= (Document. {"_id" 1 "name" 1}) (c/projection [:_id :name])))
-  (is (= (Document. {"_id" 0 "name" 1}) (c/projection [:name]))))
+  (is (= (Document. {"_id" 0 "name" 1}) (c/projection [:name])))
+  (is (= (Document. {}) (c/projection []))))
 
 (deftest sorting-test
   (testing "Using :asc and :desc"

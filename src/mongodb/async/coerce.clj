@@ -45,8 +45,10 @@
 (defn projection
   "Coerces to a projection specification document"
   [v]
-  (let [m (zipmap v (repeat 1))]
-    (to-mongo (if-not (contains? (set (keys m)) :_id) (assoc m :_id 0) m))))
+  (if (empty? v)
+    (to-mongo {})
+    (let [m (zipmap v (repeat 1))]
+      (to-mongo (if-not (contains? (set (keys m)) :_id) (assoc m :_id 0) m)))))
 
 (defn sorting
   "Coerces to a sorting specifiction document"

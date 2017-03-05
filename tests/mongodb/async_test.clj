@@ -128,3 +128,11 @@
   (testing "Sort ascending and descending"
     (is (= [["Jane" "Doe"] ["John" "Doe"] ["Johnny" "Doe"]]
            (mapv names (<!! (db/fetch *db* :test :sort {:first-name :asc :last-name :desc})))))))
+
+(deftest explain-test
+  (is (not (nil?
+            (:allPlans
+             (<!! (db/fetch-one *db* :test
+                                :only [:last-name :age]
+                                :where {:first-name "Jane"}
+                                :explain? true)))))))
