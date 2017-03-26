@@ -5,6 +5,7 @@
             [clojure.core.async :as async])
   (:import [com.mongodb.async SingleResultCallback]
            [com.mongodb.async.client MongoClients]
+           [com.mongodb.client.model UpdateOptions]
            [org.bson Document]))
 
 (deftype Connection [client db])
@@ -102,6 +103,31 @@
    (-> (collection conn coll)
        (.drop (result-fn [rs ex] (cb rs ex))))))
 
+(defn replace-one!
+  "Replaces a single document within the collection based on the filter.
+   Will perform an upsert if `:upsert?` equals true. Defaults to false.
+
+   Returns a map with the follwoing data:
+
+   :acknowledged - true if the update was acknowledged by the server
+   :matched-count - number of documents that matched the critera
+   :upserted-id - the id of the upserted document if an upsert was performed"
+  [^Connection conn coll replacement & opts]
+  (let [{:keys [where upsert?] :or {where {} upsert? false}} (remove fn? opts)
+        cb (first (filter fn? opts))]
+    (if (nil? cb)
+      (result-chan replace-one! conn coll replacement :where where :upsert? upsert?)
+      (let [query (c/to-mongo where) data (c/to-mongo replacement)
+            replace-opts (.upsert (UpdateOptions.) upsert?)]
+        (-> (collection conn coll)
+            (.replaceOne
+             query
+             data
+             replace-opts
+             (result-fn
+              [rs ex]
+              (cb (c/to-clojure rs) ex))))))))
+
 (defn remove!
   "Removes documents from a collection
    Optional arguments:
@@ -144,7 +170,7 @@
       :else
       (if (nil? cb)
         (result-chan fetch conn coll
-                     :where where :one? one? :only only :sort sort :explain? explain?)
+          :where where :one? one? :only only :sort sort :explain? explain?)
         (let [query (c/to-mongo where)
               proj (c/projection only)
               sorting (c/sorting sort)

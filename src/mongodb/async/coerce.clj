@@ -1,6 +1,9 @@
 (ns mongodb.async.coerce
   "Clojure/MongoDB - MongoDB/Clojure data coercion"
-  (:import [org.bson Document]))
+  (:import [org.bson Document]
+           [com.mongodb.client.result
+            UpdateResult$AcknowledgedUpdateResult
+            UpdateResult$UnacknowledgedUpdateResult]))
 
 (defn- coerce-map
   "Takes a map and returns another one to which
@@ -38,6 +41,18 @@
   java.util.ArrayList
   (to-clojure [array]
     (mapv to-clojure array))
+  com.mongodb.client.result.UpdateResult$AcknowledgedUpdateResult
+  (to-clojure [ack]
+    {:acknowledged true
+     :matched-count (.getMatchedCount ack)
+     :modified-count (.getModifiedCount ack)
+     :upserted-id (.getUpsertedId ack)})
+  com.mongodb.client.result.UpdateResult$UnacknowledgedUpdateResult
+  (to-clojure [_]
+    {:acknowledged false
+     :matched-count nil
+     :modified-count nil
+     :upserted-id nil})
   java.lang.Object
   (to-clojure [obj]
     obj))

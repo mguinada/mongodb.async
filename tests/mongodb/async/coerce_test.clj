@@ -1,7 +1,8 @@
 (ns mongodb.async.coerce-test
   (:require [clojure.test :refer :all]
             [mongodb.async.coerce :as c])
-  (:import [org.bson Document]))
+  (:import [org.bson Document]
+           [com.mongodb.client.result UpdateResult]))
 
 (deftest to-mongo-test
   (testing "maps"
@@ -53,3 +54,14 @@
   (testing "Using 1 and -1"
     (is (= (Document. {"age" 1 "last-name" -1})
            (c/sorting {:age 1 :last-name -1})))))
+
+(deftest acknowledged-update-result-test
+  (is (= {:acknowledged true :matched-count 1 :modified-count 1 :upserted-id nil}
+         (c/to-clojure (UpdateResult/acknowledged 1 1 nil)))))
+
+(deftest unacknowledged-update-result-test
+  (is (= {:acknowledged false
+          :matched-count nil
+          :modified-count nil
+          :upserted-id nil}
+         (c/to-clojure (UpdateResult/unacknowledged)))))

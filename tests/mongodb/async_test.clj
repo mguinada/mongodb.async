@@ -130,7 +130,7 @@
            (mapv names
                  (<!! (db/fetch *db* :test :sort {:first-name :asc :last-name :desc})))))))
 
-(deftest remove-test
+(deftest remove!-test
   (testing "Remove one"
     (is (= 1 (<!! (db/remove! *db* :test :where {:age 6}))))
     (is (= 2 (<!! (db/fetch-count *db* :test)))))
@@ -145,6 +145,31 @@
     (insert-test-data! *db*)
     (is (= 1 (<!! (db/remove-one! *db* :test :where {:last-name "Doe"}))))
     (is (= 2 (<!! (db/fetch-count *db* :test))))))
+
+(deftest replace-one!-test
+  (let [doc (<!! (db/fetch-one *db* :test :where {:age 6}))]
+    (testing "Updates an existing document"
+      (is (= {:acknowledged true :matched-count 1 :modified-count 1 :upserted-id nil}
+             (<!! (db/replace-one! *db* :test (merge doc {:age 7}) :where {:age 6}))))
+      (is (= 3 (<!! (db/fetch-count *db* :test))))
+      (is (= 1 (<!! (db/fetch-count *db* :test :where {:age 7})))))
+    (testing "Replace one using filter"
+      (is (= {:acknowledged true :matched-count 1 :modified-count 1 :upserted-id nil}
+             (<!! (db/replace-one! *db* :test {:adult true} :where {:age {:$gt 18}}))))
+      (is (= 1 (<!! (db/fetch-count *db* :test :where {:adult true})))))
+    (testing "Upsert"
+      (is (= {:acknowledged true :matched-count 1 :modified-count 1 :upserted-id nil}
+             (<!! (db/replace-one! *db* :test {:adult true} :where {:age {:$gt 18}}))))
+      (let [r (<!! (db/replace-one! *db*
+                                   :test {:first-name "Jennifer"
+                                          :last-name "Doe"
+                                          :adult false}
+                                   :where {:age 3}
+                                   :upsert? true))]
+        (is (not (nil? (:upserted-id r))))
+        (is (zero? (:matched-count r)))
+        (is (zero? (:modified-count r))))
+      (is (= 4 (<!! (db/fetch-count *db* :test)))))))
 
 (deftest explain-test
   (is (not (nil?
