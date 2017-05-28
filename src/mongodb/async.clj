@@ -48,7 +48,7 @@
      (onResult [_ ~result ~exception]
        (~@body))))
 
-(defmacro defop
+(defmacro ^:no-doc defop
   "`defop` defines `mongo.async` functions that consist of mongo operations
   (e.g. `fetch`, `count`, etc). These function signatures are somehow atypical.
   They may take positional arguments, keyword arguments and another final positional

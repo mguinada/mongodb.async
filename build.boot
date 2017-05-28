@@ -5,6 +5,7 @@
                  [adzerk/boot-test "1.1.2" :scope "test"]
                  [metosin/boot-alt-test "0.2.1" :scope "test"]
                  [org.clojure/tools.namespace "0.2.11" :scope "test"]
+                 [boot-codox "0.10.3" :scope "test"]
                  [org.clojure/tools.macro "0.1.2"]
                  [org.mongodb/mongodb-driver-async "3.4.2"]
                  [org.clojure/core.async "0.2.395"]])
@@ -13,7 +14,8 @@
  '[boot.task.built-in    :refer [aot]]
  '[adzerk.boot-reload    :refer [reload]]
  '[adzerk.boot-test      :refer [test]]
- '[metosin.boot-alt-test :refer [alt-test]])
+ '[metosin.boot-alt-test :refer [alt-test]]
+ '[codox.boot            :refer [codox]])
 
 ;;clojure namespace tools integration
 (swap! boot.repl/*default-dependencies* conj
@@ -28,9 +30,14 @@
        conj 'cider.nrepl/cider-middleware)
 
 ;; Tasks
+(deftask docs []
+  (comp
+   (codox :name "mongodb.async" :source-paths #{"src"})
+   (target)))
 
 (deftask build []
   (comp (speak)
+        (docs)
         (aot)))
 
 (deftask run []
