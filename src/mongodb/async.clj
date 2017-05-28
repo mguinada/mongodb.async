@@ -91,13 +91,15 @@
     ch))
 
 (defn- fetch-iterable
-  [^Connection conn coll ^Document query ^Document projection ^Document sorting]
-  {:pre [(doc? query) (doc? projection) (doc? sorting)]}
-  (let [it (collection conn coll)
-        it (if-not (empty? query) (.find it query) (.find it))
-        it (if-not (empty? projection) (.projection it projection) it)
-        it (if-not (empty? sorting) (.sort it sorting) it)]
-    it))
+  ([^Connection conn coll ^Document query ^Document projection ^Document sorting]
+   (fetch-iterable conn coll query projection sorting 0 0))
+  ([^Connection conn coll ^Document query ^Document projection ^Document sorting skip limit]
+   {:pre [(doc? query) (doc? projection) (doc? sorting)]}
+   (let [it (collection conn coll)
+         it (if-not (empty? query) (.find it query) (.find it))
+         it (if-not (empty? projection) (.projection it projection) it)
+         it (if-not (empty? sorting) (.sort it sorting) it)]
+     (-> it (.skip skip) (.limit limit)))))
 
 (defn- count*
   [^Connection conn coll ^Document query cb]
@@ -182,10 +184,13 @@
    :where - a query map
    :only - a vector of keys to project
    :sort - a map with sorting specs
+   :skip - number of records to skip
+   :limit - number of records to return
    :count? - performs a document count, defaults to `false`
    :one? - retreive only the first document, defaults to `false`
    :explain? - returns the query explain data, defaults to `false`"
-  [^Connection conn coll :where {} :only [] :sort {} :count? false :one? false :explain? false cb]
+  [^Connection conn coll
+   :where {} :only [] :sort {} :skip 0 :limit 0 :count? false :one? false :explain? false cb]
   (cond
     count?
     (let [query (c/to-mongo where)]
@@ -195,12 +200,18 @@
     :else
     (if (nil? cb)
       (result-chan fetch conn coll
-                   :where where :one? one? :only only :sort sort :explain? explain?)
+                   :where where
+                   :one? one?
+                   :only only
+                   :sort sort
+                   :skip skip
+                   :limit limit
+                   :explain? explain?)
       (let [query (c/to-mongo where)
             proj (c/projection only)
             sorting (c/sorting sort)
             rsfn (result-fn [rs ex] (cb (c/to-clojure rs) ex))
-            it (fetch-iterable conn coll query proj sorting)]
+            it (fetch-iterable conn coll query proj sorting skip limit)]
         (if explain?
           (.first (.modifiers it (c/to-mongo {:$explain true})) rsfn)
           (if one?

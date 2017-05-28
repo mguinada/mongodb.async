@@ -77,7 +77,16 @@
 (deftest fetch-all-test
   (testing "returns a collection of documents as a channel"
     (is (= [["John" "Doe"] ["Jane" "Doe"] ["Johnny" "Doe"]]
-           (mapv names (<!! (db/fetch *db* :test)))))))
+           (mapv names (<!! (db/fetch *db* :test))))))
+  (testing "allows to skip records"
+    (is (= [["Jane" "Doe"] ["Johnny" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test :skip 1))))))
+  (testing "allows to limit records"
+    (is (= [["John" "Doe"] ["Jane" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test :limit 2))))))
+  (testing "allows to skip and limit records"
+    (is (= [["Jane" "Doe"]]
+           (mapv names (<!! (db/fetch *db* :test :skip 1 :limit 1)))))))
 
 (deftest fetch-where-test
   (testing "Empty query map"
