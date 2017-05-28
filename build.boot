@@ -5,6 +5,7 @@
                  [adzerk/boot-test "1.1.2" :scope "test"]
                  [metosin/boot-alt-test "0.2.1" :scope "test"]
                  [org.clojure/tools.namespace "0.2.11" :scope "test"]
+                 [org.clojure/tools.macro "0.1.2"]
                  [org.mongodb/mongodb-driver-async "3.4.2"]
                  [org.clojure/core.async "0.2.395"]])
 

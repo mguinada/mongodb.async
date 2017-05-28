@@ -2,7 +2,8 @@
   "Thin wrapper for MongoDB's java async driver that enables idiomatic
   asynchronous operation over MongoDB via callbacks or `core.async channels`"
   (:require [mongodb.async.coerce :as c]
-            [clojure.core.async :as async])
+            [clojure.core.async :as async]
+            [clojure.tools.macro :as m])
   (:import [com.mongodb.async SingleResultCallback]
            [com.mongodb.async.client MongoClients]
            [com.mongodb.client.model UpdateOptions]
@@ -46,6 +47,38 @@
   `(reify SingleResultCallback
      (onResult [_ ~result ~exception]
        (~@body))))
+
+(defmacro defop
+  "`defop` defines `mongo.async` functions that consist of mongo operations
+  (e.g. `fetch`, `count`, etc). These function signatures are somehow atypical.
+  They may take positional arguments, keyword arguments and another final positional
+  argument that takes a callback function. This is not supported by clojure's map
+  destructuring construct, so `defop` provides the syntatic sugar to do this.
+
+  example:
+
+  (defop f
+    \"Two positinal arguments, two optionals interleaved with default values
+     and a final positional argument\"
+    [pos1 pos2 :opt1 {} :opt2 :opt2-default f]
+    {:pos1 pos1 :pos2 pos2 :opt1 opt1 :opt2 opt2 :f f})
+
+  (f :a :b :opts1 :x :tail)
+  ;; => {:pos1 :a, :pos2 :b, :opt1 {}, :opt2 :opt2-default, :f :tail}
+  "
+  [fn-name & fn-tail]
+  (let [[fn-name [args & body]] (m/name-with-attributes fn-name fn-tail)
+        [positionals tail] (split-with symbol? args)
+        [options [tail-pos]] (split-with (complement symbol?) tail)
+        syms (map #(-> % name symbol) (take-nth 2 options))
+        vals (take-nth 2 (rest options))
+        destruct-map {:keys (vec syms) :or (apply hash-map (interleave syms vals))}]
+    `(defn ~fn-name
+       {:arglists '([~@positionals ~destruct-map] [~@positionals ~destruct-map ~tail-pos])}
+       [~@positionals & options#]
+       (let [~destruct-map (apply hash-map (remove fn? options#))
+             [~tail-pos] (filter fn? options#)]
+         ~@body))))
 
 (defn- result-chan
   [f & args]
@@ -103,50 +136,46 @@
    (-> (collection conn coll)
        (.drop (result-fn [rs ex] (cb rs ex))))))
 
-(defn replace-one!
+(defop replace-one!
   "Replaces a single document within the collection based on the filter.
    Will perform an upsert if `:upsert?` equals true. Defaults to false.
 
-   Returns a map with the follwoing data:
+   Returns a map with the following data:
 
    :acknowledged - true if the update was acknowledged by the server
    :matched-count - number of documents that matched the critera
    :upserted-id - the id of the upserted document if an upsert was performed"
-  [^Connection conn coll replacement & opts]
-  (let [{:keys [where upsert?] :or {where {} upsert? false}} (remove fn? opts)
-        cb (first (filter fn? opts))]
-    (if (nil? cb)
-      (result-chan replace-one! conn coll replacement :where where :upsert? upsert?)
-      (let [query (c/to-mongo where) data (c/to-mongo replacement)
-            replace-opts (.upsert (UpdateOptions.) upsert?)]
-        (-> (collection conn coll)
-            (.replaceOne
-             query
-             data
-             replace-opts
-             (result-fn
-              [rs ex]
-              (cb (c/to-clojure rs) ex))))))))
+  [^Connection conn coll replacement :where {} :upsert? false cb]
+  (if (nil? cb)
+    (result-chan replace-one! conn coll replacement :where where :upsert? upsert?)
+    (let [query (c/to-mongo where) data (c/to-mongo replacement)
+          replace-opts (.upsert (UpdateOptions.) upsert?)]
+      (-> (collection conn coll)
+          (.replaceOne
+           query
+           data
+           replace-opts
+           (result-fn
+            [rs ex]
+            (cb (c/to-clojure rs) ex)))))))
 
-(defn remove!
+(defop remove!
   "Removes documents from a collection
    Optional arguments:
 
    :where - a query map
    :one? - delete only the first document the complies to the query, defaults to `false`"
-  [^Connection conn coll & opts]
-  (let [{:keys [where one?] :or {where {} one? false}} (remove fn? opts)
-        cb (first (filter fn? opts))]
-    (if (nil? cb)
-      (result-chan remove! conn coll :where where :one? one?)
-      (let [query (c/to-mongo where)
-            rsfn (result-fn [rs ex] (cb (.getDeletedCount rs) ex))
-            it (collection conn coll)]
-        (if one?
-          (.deleteOne it query rsfn)
-          (.deleteMany it query rsfn))))))
+  [^Connection conn coll :where {} :one? false cb]
+  (if (nil? cb)
+    (result-chan remove! conn coll :where where :one? one?)
+    (let [query (c/to-mongo where)
+          rsfn (result-fn [rs ex] (cb (.getDeletedCount rs) ex))
+          it (collection conn coll)]
+      (if one?
+        (.deleteOne it query rsfn)
+        (.deleteMany it query rsfn)))))
 
-(defn fetch
+(defop fetch
   "Fetches data from collection `coll`
    Optional arguments:
 
@@ -156,50 +185,46 @@
    :count? - performs a document count, defaults to `false`
    :one? - retreive only the first document, defaults to `false`
    :explain? - returns the query explain data, defaults to `false`"
-  [^Connection conn coll & opts]
-  (let [{:keys [where only sort count? one? explain?]
-         :or {where {} only [] sort {}
-              count? false one? false explain? false}} (remove fn? opts)
-        cb (first (filter fn? opts))]
-    (cond
-      count?
-      (let [query (c/to-mongo where)]
-        (if (nil? cb)
-          (result-chan count* conn coll query)
-          (count* conn coll query cb)))
-      :else
+  [^Connection conn coll :where {} :only [] :sort {} :count? false :one? false :explain? false cb]
+  (cond
+    count?
+    (let [query (c/to-mongo where)]
       (if (nil? cb)
-        (result-chan fetch conn coll
-          :where where :one? one? :only only :sort sort :explain? explain?)
-        (let [query (c/to-mongo where)
-              proj (c/projection only)
-              sorting (c/sorting sort)
-              rsfn (result-fn [rs ex] (cb (c/to-clojure rs) ex))
-              it (fetch-iterable conn coll query proj sorting)]
-          (if explain?
-            (.first (.modifiers it (c/to-mongo {:$explain true})) rsfn)
-            (if one?
-                (.first it rsfn)
-                (.into it (java.util.ArrayList.) rsfn))))))))
+        (result-chan count* conn coll query)
+        (count* conn coll query cb)))
+    :else
+    (if (nil? cb)
+      (result-chan fetch conn coll
+                   :where where :one? one? :only only :sort sort :explain? explain?)
+      (let [query (c/to-mongo where)
+            proj (c/projection only)
+            sorting (c/sorting sort)
+            rsfn (result-fn [rs ex] (cb (c/to-clojure rs) ex))
+            it (fetch-iterable conn coll query proj sorting)]
+        (if explain?
+          (.first (.modifiers it (c/to-mongo {:$explain true})) rsfn)
+          (if one?
+            (.first it rsfn)
+            (.into it (java.util.ArrayList.) rsfn)))))))
 
-(defn- args-concat
-  [^Connection conn coll opts & extra]
-  (concat [conn coll] (concat opts extra)))
+(defn- apply-op
+  [f args]
+  (apply f (remove nil? args)))
 
-(defn fetch-count
+(defop fetch-count
   "Counts the number of documents in the collection.
    Optionaly a query map can be provided."
-  [^Connection conn coll & opts]
-  (apply fetch (args-concat conn coll opts :count? true)))
+  [^Connection conn coll :where {} cb]
+  (apply-op fetch [conn coll :where where :count? true cb]))
 
-(defn fetch-one
+(defop fetch-one
   "Fetches the first document that complies to the query criteria
    or `nil` of no document is found if using a callback or `:nil`
    will be placed in the channel when using this particular interface."
-  [^Connection conn coll & opts]
-  (apply fetch (args-concat conn coll opts :one? true)))
+  [^Connection conn coll :where {} :only [] :explain? false cb]
+  (apply-op fetch [conn coll :where where :only only :one? true :explain? explain? cb]))
 
-(defn remove-one!
+(defop remove-one!
   "Remove the first document that complies to the query"
-  [^Connection conn coll & opts]
-  (apply remove! (args-concat conn coll opts :one? true)))
+  [^Connection conn coll :where {} :explain? false cb]
+  (apply-op remove! [conn coll :where where :one? true :explain? explain? cb]))

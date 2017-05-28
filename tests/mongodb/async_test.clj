@@ -44,6 +44,20 @@
 
 (def names (juxt :first-name :last-name))
 
+(deftest defop
+  (db/defop t [a b :c 1 :d 2 f] {:a a :b b :c c :d d :f f})
+  (testing "Supports positional args plus optionals and one tail positional argument"
+    (let [fun (fn [] nil)]
+      (is (= {:a :a :b :b :c 9 :d 2 :f fun} (t :a :b :c 9 fun)))
+      (is (= {:a :a :b :b :c 8 :d 9 :f fun} (t :a :b :c 8 :d 9 fun)))
+      (is (= {:a :a :b :b :c 1 :d 2 :f nil} (t :a :b)))))
+  (testing "Correct argslists"
+    (is (= '([a b {:keys [c d], :or {c 1, d 2}}] [a b {:keys [c d], :or {c 1, d 2}} f])
+           (:arglists (meta #'t)))))
+  (testing "Supports doc strings"
+    (db/defop t2 "Doc string" [a b :c 1 :d 2 f] {:a a :b b :c c :d d :f f})
+    (is (= "Doc string" (:doc (meta #'t2))))))
+
 (deftest insert!-test
   (testing "inserts a document into a collection using a callback"
     (db/insert!
@@ -161,9 +175,10 @@
       (is (= {:acknowledged true :matched-count 1 :modified-count 1 :upserted-id nil}
              (<!! (db/replace-one! *db* :test {:adult true} :where {:age {:$gt 18}}))))
       (let [r (<!! (db/replace-one! *db*
-                                   :test {:first-name "Jennifer"
-                                          :last-name "Doe"
-                                          :adult false}
+                                    :test
+                                    {:first-name "Jennifer"
+                                     :last-name "Doe"
+                                     :adult false}
                                    :where {:age 3}
                                    :upsert? true))]
         (is (not (nil? (:upserted-id r))))
