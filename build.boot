@@ -1,13 +1,14 @@
 (set-env!
- :source-paths  #{"src" "tests"}
- :test-paths    #{"tests"}
- :dependencies '[[metosin/boot-alt-test "0.3.2" :scope "test"]
-                 [org.clojure/tools.namespace "0.3.0-alpha3" :scope "test"]
-                 [boot-codox "0.10.3" :scope "test"]
-                 [org.clojure/clojure "1.9.0-alpha17" :scope "provided"]
-                 [org.mongodb/mongodb-driver-async "3.4.2"]
-                 [org.clojure/core.async "0.3.443"]
-                 [org.clojure/tools.macro "0.1.2"]])
+ :source-paths   #{"src" "tests"}
+ :resource-paths #{"src"}
+ :test-paths     #{"tests"}
+ :dependencies  '[[metosin/boot-alt-test "0.3.2" :scope "test"]
+                  [org.clojure/tools.namespace "0.3.0-alpha3" :scope "test"]
+                  [boot-codox "0.10.3" :scope "test"]
+                  [org.clojure/clojure "1.9.0-alpha17" :scope "provided"]
+                  [org.mongodb/mongodb-driver-async "3.4.2"]
+                  [org.clojure/core.async "0.3.443"]
+                  [org.clojure/tools.macro "0.1.2"]])
 
 (require
  '[metosin.boot-alt-test :refer [alt-test]]
@@ -63,7 +64,7 @@
         (jar)
         (install)))
 
-(deftask run []
+(deftask dev []
   (comp (watch)
         (build)
         (repl :server true)))
