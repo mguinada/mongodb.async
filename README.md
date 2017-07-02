@@ -1,6 +1,7 @@
-# mongodb.async
+# mongodb.async [![Build Status](https://travis-ci.org/mguinada/mongodb.async.svg?branch=master)](https://travis-ci.org/mguinada/mongodb.async)
 
 Asynchronous MongoDB client for Clojure
+
 
 ### Disclaimer
 

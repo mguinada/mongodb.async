@@ -1,0 +1,30 @@
+sudo: false
+language: java
+script: boot run-tests
+install:
+  - mkdir -p ~/bin
+  - export PATH=~/bin:$PATH
+  - curl -L https://github.com/boot-clj/boot-bin/releases/download/2.5.2/boot.sh -o ~/bin/boot
+  - chmod +x ~/bin/boot
+env:
+  matrix:
+    - BOOT_CLOJURE_VERSION=1.9.0-alpha17
+services:
+  - mongodb
+addons:
+  apt:
+    sources:
+      - mongodb-upstart
+      - sourceline: 'deb [arch=amd64] http://repo.mongodb.org/apt/ubuntu precise/mongodb-org/3.4 multiverse'
+        key_url: 'https://www.mongodb.org/static/pgp/server-3.4.asc'
+    packages:
+      - mongodb-org-server
+      - mongodb-org-shell
+jdk:
+  - oraclejdk8
+cache:
+  directories:
+  - $HOME/.m2
+  - $HOME/.boot/cache/bin
+  - $HOME/.boot/cache/lib
+  - $HOME/bin

@@ -8,7 +8,7 @@
                  [boot-codox "0.10.3" :scope "test"]
                  [org.clojure/tools.macro "0.1.2"]
                  [org.mongodb/mongodb-driver-async "3.4.2"]
-                 [org.clojure/core.async "0.2.395"]])
+                 [org.clojure/core.async "0.3.443"]])
 
 (require
  '[boot.task.built-in    :refer [aot]]
