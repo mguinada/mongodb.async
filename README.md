@@ -1,7 +1,7 @@
-# mongodb.async [![Build Status](https://travis-ci.org/mguinada/mongodb.async.svg?branch=master)](https://travis-ci.org/mguinada/mongodb.async)
+# mongodb.async 
+<br/>[![Clojars Project](https://img.shields.io/clojars/v/mguinada/mongodb.async.svg)](https://clojars.org/mguinada/mongodb.async) [![Build Status](https://travis-ci.org/mguinada/mongodb.async.svg?branch=master)](https://travis-ci.org/mguinada/mongodb.async)
 
 Asynchronous MongoDB client for Clojure
-
 
 ### Disclaimer
 
