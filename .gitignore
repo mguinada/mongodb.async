@@ -14,3 +14,4 @@ log/
 .nrepl-history
 \#*\#
 .DS_Store
+boot.properties
