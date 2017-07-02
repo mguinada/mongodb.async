@@ -70,6 +70,7 @@
   (let [[fn-name [args & body]] (m/name-with-attributes fn-name fn-tail)
         [positionals tail] (split-with symbol? args)
         [options [tail-pos]] (split-with (complement symbol?) tail)
+        tail-pos (if (nil? tail-pos) (gensym "tail-pos") tail-pos)
         syms (map #(-> % name symbol) (take-nth 2 options))
         vals (take-nth 2 (rest options))
         destruct-map {:keys (vec syms) :or (apply hash-map (interleave syms vals))}]
@@ -79,6 +80,10 @@
        (let [~destruct-map (apply hash-map (remove fn? options#))
              [~tail-pos] (filter fn? options#)]
          ~@body))))
+
+(defn- apply-op
+  [f args]
+  (apply f (remove nil? args)))
 
 (defn- result-chan
   [f & args]
@@ -111,18 +116,24 @@
     [rs ex]
     (cb (c/to-clojure rs) ex))))
 
-(defn insert!
-  "Inserts `data` into collection `coll`"
-  ([^Connection conn coll data]
-   (result-chan insert! conn coll (c/to-mongo data)))
-  ([^Connection conn coll data cb]
-   (let [doc (c/to-mongo data)]
-     (-> (collection conn coll)
-         (.insertOne
-          doc
-          (result-fn
-           [_ ex]
-           (cb (c/to-clojure doc) ex)))))))
+(defop insert!
+  "Inserts `data` into collection `coll`.
+   If the options :many is true, and a vector is provided as data,
+   a mass insert will be performed"
+  [^Connection conn coll data :many false cb]
+  (if (nil? cb)
+    (result-chan insert! conn coll data :many many)
+    (let [db-coll (collection conn coll)
+          doc (c/to-mongo data)
+          rfn (result-fn [_ ex] (cb (c/to-clojure doc) ex))]
+      (if many
+        (.insertMany db-coll doc rfn)
+        (.insertOne db-coll doc rfn)))))
+
+(defop insert-many!
+  "Mass insert"
+  [^Connection conn coll data]
+  (apply-op insert! [conn coll data :many true]))
 
 (defn drop-collection!
   "Drops a collection"

@@ -56,7 +56,10 @@
            (:arglists (meta #'t)))))
   (testing "Supports doc strings"
     (db/defop t2 "Doc string" [a b :c 1 :d 2 f] {:a a :b b :c c :d d :f f})
-    (is (= "Doc string" (:doc (meta #'t2))))))
+    (is (= "Doc string" (:doc (meta #'t2)))))
+  (testing "Can be composed only of positional arguments"
+    (db/defop t3 [a b c] {:a a :b b :c c})
+    (is (= {:a :a :b :b :c :c} (t3 :a :b :c)))))
 
 (deftest insert!-test
   (testing "inserts a document into a collection using a callback"
@@ -73,6 +76,14 @@
                         *db*
                         :users
                         {:first-name "John" :last-name "Doe"})))))))
+
+(deftest insert-many!-test
+  (is (= [["John" "Doe"] ["Jane" "Doe"]]
+         (mapv names (<!! (db/insert-many!
+                      *db*
+                      :users
+                      [{:first-name "John" :last-name "Doe"}
+                       {:first-name "Jane" :last-name "Doe"}]))))))
 
 (deftest fetch-all-test
   (testing "returns a collection of documents as a channel"
@@ -197,7 +208,7 @@
 
 (deftest explain-test
   (is (not (nil?
-            (:allPlans
+            (:queryPlanner
              (<!! (db/fetch-one *db* :test
                                 :only [:last-name :age]
                                 :where {:first-name "Jane"}

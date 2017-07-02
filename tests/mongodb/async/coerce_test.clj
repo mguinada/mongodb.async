@@ -40,7 +40,12 @@
               :address {:street "a street"
                         :city "a city"
                         :zip {:area "Z" :code "123"}}}
-             (c/to-clojure doc))))))
+             (c/to-clojure doc)))))
+  (testing "Vectors"
+    (let [docs [(Document. {"first-name" "Joe" "age" 18})
+                (Document. {"first-name" "Jane" "age" 17})]]
+      (is (= [{:first-name "Joe" :age 18} {:first-name "Jane" :age 17}]
+             (c/to-clojure docs))))))
 
 (deftest projection-test
   (is (= (Document. {"_id" 1 "name" 1}) (c/projection [:_id :name])))

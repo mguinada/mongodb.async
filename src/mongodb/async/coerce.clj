@@ -41,6 +41,9 @@
   java.util.ArrayList
   (to-clojure [array]
     (mapv to-clojure array))
+  clojure.lang.IPersistentVector
+  (to-clojure [vect]
+    (mapv to-clojure vect))
   com.mongodb.client.result.UpdateResult$AcknowledgedUpdateResult
   (to-clojure [ack]
     {:acknowledged true
