@@ -2,11 +2,12 @@
  :source-paths   #{"src" "tests"}
  :resource-paths #{"src"}
  :test-paths     #{"tests"}
+ :repositories   #(conj % ["Sontatype Snapshots" {:url "https://oss.sonatype.org/content/repositories/snapshots"}])
  :dependencies  '[[metosin/boot-alt-test "0.3.2" :scope "test"]
                   [org.clojure/tools.namespace "0.3.0-alpha3" :scope "test"]
                   [boot-codox "0.10.3" :scope "test"]
                   [org.clojure/clojure "1.9.0-alpha17" :scope "provided"]
-                  [org.mongodb/mongodb-driver-async "3.4.2"]
+                  [org.mongodb/mongodb-driver-async "3.5.0-SNAPSHOT"]
                   [org.clojure/core.async "0.3.443"]
                   [org.clojure/tools.macro "0.1.2"]])
 
@@ -60,6 +61,7 @@
 
 (deftask build []
   (comp (docs)
+        (aot)
         (pom)
         (jar)
         (install)))
