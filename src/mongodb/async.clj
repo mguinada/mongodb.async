@@ -89,9 +89,8 @@
   [f & args]
   (let [ch (async/chan 1)
         cb (fn [rs ex]
-             (-> ch
-                 (async/put! (or ex rs :nil))
-                 (async/close!)))]
+             (async/put! ch (or ex rs :nil))
+             (async/close! ch))]
     (apply f (concat args [cb]))
     ch))
 
